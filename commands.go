@@ -55,6 +55,9 @@ func (cr CommandRouter) runCommand(s *discordgo.Session, m *discordgo.MessageCre
 	if strings.HasPrefix(m.Content, cr.Prefix) {
 		// We're handling this command!
 		commandName := strings.TrimPrefix(m.Content, cr.Prefix)
-		cr.commandMap[commandName].Command(s, m)
+		cmd, ok := cr.commandMap[commandName]
+		if ok {
+			cmd.Command(s, m)
+		}
 	}
 }
