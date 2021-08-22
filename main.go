@@ -5,10 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/lus/dgc"
 	"github.com/pelletier/go-toml"
 )
 
@@ -21,8 +19,8 @@ type DiscordInfo struct {
 }
 
 var (
-	config Config
-	dg     *discordgo.Session
+	config  Config
+	session *discordgo.Session
 )
 
 func init() {
@@ -48,15 +46,25 @@ func fatalLog(err error) {
 
 func main() {
 	var err error
-	dg, err = discordgo.New("Bot " + config.Discord.Token)
+	session, err = discordgo.New("Bot " + config.Discord.Token)
 	if err != nil {
 		fatalLog(err)
 	}
 
-	dg.AddHandler(messageCreate)
-	dg.Identify.Intents = discordgo.IntentsGuildMessages
+	session.Identify.Intents = discordgo.IntentsGuildMessages
 
-	err = dg.Open()
+	commands := []Command{
+		{
+			"ping",
+			"Responds with pong",
+			pongFunc,
+		},
+	}
+
+	commandRouter := newCommandRouter("!", commands)
+	commandRouter.initialize(session)
+
+	err = session.Open()
 	if err != nil {
 		fatalLog(err)
 	}
@@ -64,49 +72,40 @@ func main() {
 	sc := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sc)
-	ticker := time.NewTicker(5 * time.Minute)
 	go func() {
 		for {
 			select {
-			case <-ticker.C:
-				// TIMER!
-				setStatus(dg)
 			case <-sc:
-				dg.Close()
+				doLog("Attempting graceful shutdown")
+				session.Close()
 				done <- true
 			}
 		}
 	}()
-	setStatus(dg)
 	fmt.Println("Bot is now running. Press CTRL-C to exit.")
 
 	<-done
 	fmt.Println("Goodbye!")
-	dg.Close()
+	session.Close()
 }
 
-func setStatus(s *discordgo.Session) {
-	// s.Update
-	// s.UpdateStatus(0, "#help for a list of commands")
+func pongFunc(s *discordgo.Session, m *discordgo.MessageCreate) {
+	s.ChannelMessageSend(m.ChannelID, "pong")
 }
 
-func pingHandler(ctx *dgc.Ctx) {
-	ctx.RespondText("Ping")
-}
+// func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+// 	// Ignore all messages created by the bot itself
+// 	// This isn't required in this specific example but it's a good practice.
+// 	if m.Author.ID == s.State.User.ID {
+// 		return
+// 	}
+// 	// If the message is "ping" reply with "Pong!"
+// 	if m.Content == "ping" {
+// 		s.ChannelMessageSend(m.ChannelID, "Pong!")
+// 	}
 
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// Ignore all messages created by the bot itself
-	// This isn't required in this specific example but it's a good practice.
-	if m.Author.ID == s.State.User.ID {
-		return
-	}
-	// If the message is "ping" reply with "Pong!"
-	if m.Content == "ping" {
-		s.ChannelMessageSend(m.ChannelID, "Pong!")
-	}
-
-	// If the message is "pong" reply with "Ping!"
-	if m.Content == "pong" {
-		s.ChannelMessageSend(m.ChannelID, "Ping!")
-	}
-}
+// 	// If the message is "pong" reply with "Ping!"
+// 	if m.Content == "pong" {
+// 		s.ChannelMessageSend(m.ChannelID, "Ping!")
+// 	}
+// }

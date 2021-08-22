@@ -18,12 +18,33 @@ type CommandRouter struct {
 	commandMap map[string]Command
 }
 
+func newCommandRouter(prefix string, commands []Command) (router CommandRouter) {
+	router = CommandRouter{
+		Prefix:     prefix,
+		Commands:   commands,
+		commandMap: make(map[string]Command),
+	}
+	return router
+}
+
 func (cr CommandRouter) initialize(session *discordgo.Session) {
-	cr.commandMap = make(map[string]Command)
+	cr.buildCommandMap()
+	session.AddHandler(cr.runCommand)
+}
+
+func (cr CommandRouter) buildCommandMap() {
+	for k := range cr.commandMap {
+		delete(cr.commandMap, k)
+	}
+
 	for _, cmd := range cr.Commands {
 		cr.commandMap[cmd.Name] = cmd
 	}
-	session.AddHandler(cr.runCommand)
+}
+
+func (cr CommandRouter) addRouter(newCommand Command) {
+	cr.Commands = append(cr.Commands, newCommand)
+	cr.buildCommandMap()
 }
 
 func (cr CommandRouter) runCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
