@@ -1,0 +1,11 @@
+version: '3.6'
+
+services:
+  dumbot:
+    build:
+      context: .
+      dockerfile: Dockerfile_bot
+    image: moosetheory/dumbot:dev
+    restart: always
+    volumes:
+      - "./config.dev.toml:/config.toml"

@@ -1,0 +1,8 @@
+version: '3.6'
+
+services:
+  dumbot:
+    image: moosetheory/dumbot:0.0.1
+    restart: always
+    volumes:
+      - "./config.toml:/config.toml"
