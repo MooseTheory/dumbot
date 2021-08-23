@@ -68,7 +68,7 @@ func main() {
 	commands := []Command{
 		{
 			Name:        "maintenance",
-			Aliases:     []string{"m"},
+			Aliases:     []string{"m", "maint"},
 			Description: "Fetch maintenance information",
 			Command:     maintenanceCommand,
 		},
