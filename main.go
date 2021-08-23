@@ -67,28 +67,21 @@ func main() {
 
 	commands := []Command{
 		{
-			"maintenance",
-			"Fetch maintenance information",
-			maintenanceCommand,
+			Name:        "maintenance",
+			Aliases:     []string{"m"},
+			Description: "Fetch maintenance information",
+			Command:     maintenanceCommand,
 		},
 		{
-			"m",
-			"Fetch maintenance information",
-			maintenanceCommand,
-		},
-		{
-			"fashionreport",
-			"Fetch the latest fashion report",
-			fashionReport,
-		},
-		{
-			"f",
-			"Fetch the latest fashion report",
-			fashionReport,
+			Name:        "fashionreport",
+			Aliases:     []string{"f", "FashionReport"},
+			Description: "Fetch the latest fashion report",
+			Command:     fashionReport,
 		},
 	}
 
 	commandRouter := newCommandRouter("!", commands)
+	commandRouter.IgnoreCase = true
 	commandRouter.initialize(session)
 	// End Discord stuff
 
