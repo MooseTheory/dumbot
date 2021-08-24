@@ -147,14 +147,27 @@ func maintenanceCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 	nextMaintenance := MaintenanceInfo{
 		Title: "ERROR",
 	}
+	currentMaintenance := MaintenanceInfo{
+		Title: "ERROR",
+	}
 	for _, maint := range allMaintenance {
 		// I think these come in chronological order, so the "last" one we
 		// encounter should be the next one.
 		if maint.Start.After(curTime) {
 			nextMaintenance = maint
+		} else if maint.Start.Before(curTime) && maint.End.After(curTime) {
+			// We're doing maintenance now...
+			currentMaintenance = maint
 		}
 	}
-	if nextMaintenance.Title == "ERROR" {
+	if currentMaintenance.Title != "ERROR" {
+		// We're doing maintenance now, show that shit.
+		embed, err := createCurrentMaintenanceEmbed(currentMaintenance)
+		if err != nil {
+			s.ChannelMessageSend(m.ChannelID, err.Error())
+		}
+		s.ChannelMessageSendEmbed(m.ChannelID, embed)
+	} else if nextMaintenance.Title == "ERROR" {
 		s.ChannelMessageSend(m.ChannelID, "There isn't currently any scheduled maintenance! Enjoy the game!")
 	} else {
 		embed, err := createMaintenanceEmbed(nextMaintenance)
@@ -174,6 +187,42 @@ func createFashionEmbed(post *reddit.Post) *discordgo.MessageEmbed {
 			URL: post.URL,
 		},
 	}
+}
+
+func createCurrentMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmbed, error) {
+	// Do we need to do this every time? I don't wanna be dumb when we switch
+	// from daylight saving to "standard" time
+	easternLoc, err := time.LoadLocation(timeZones["Eastern"])
+	if err != nil {
+		return nil, err
+	}
+	pacificLoc, err := time.LoadLocation(timeZones["Pacific"])
+	if err != nil {
+		return nil, err
+	}
+
+	var fields []*discordgo.MessageEmbedField
+	easternFieldText := fmt.Sprintf("Maintenance ends at %s", maint.End.In(easternLoc).Format("02 Jan 2006, 03:04PM"))
+	pacificFieldText := fmt.Sprintf("Maintenance ends at %s", maint.End.In(pacificLoc).Format("02 Jan 2006, 03:04PM"))
+	fields = append(fields, &discordgo.MessageEmbedField{
+		Name:   "Eastern",
+		Value:  easternFieldText,
+		Inline: false,
+	})
+	fields = append(fields, &discordgo.MessageEmbedField{
+		Name:   "Pacific",
+		Value:  pacificFieldText,
+		Inline: false,
+	})
+
+	return &discordgo.MessageEmbed{
+		Type:        discordgo.EmbedTypeRich,
+		Title:       "Current Maintenance",
+		Description: fmt.Sprintf("%s\nMaintenance ends in %.2f hours!", maint.Title, maint.End.Sub(time.Now()).Hours()),
+		Timestamp:   time.Now().Format(time.RFC3339),
+		Color:       0xffff00,
+		Fields:      fields,
+	}, nil
 }
 
 func createMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmbed, error) {
