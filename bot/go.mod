@@ -1,4 +1,4 @@
-module github.com/moosetheory/fourteen
+module github.com/moosetheory/dumbot
 
 go 1.16
 
