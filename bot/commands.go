@@ -107,7 +107,7 @@ func (cr CommandRouter) helpCommand(s *discordgo.Session, m *discordgo.MessageCr
 		Title:       fmt.Sprintf("%s Help", cr.Name),
 		Description: "Commands available",
 		Timestamp:   time.Now().Format(time.RFC3339),
-		Color:       0xffff00,
+		Color:       0x34a1eb,
 		Fields:      fields,
 	}
 	s.ChannelMessageSendEmbed(m.ChannelID, message)

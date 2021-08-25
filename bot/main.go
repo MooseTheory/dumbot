@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -183,9 +184,11 @@ func createFashionEmbed(post *reddit.Post) *discordgo.MessageEmbed {
 	return &discordgo.MessageEmbed{
 		Type:  discordgo.EmbedTypeImage,
 		Title: post.Title,
+		URL:   post.URL,
 		Image: &discordgo.MessageEmbedImage{
 			URL: post.URL,
 		},
+		Color: 0x34a1eb,
 	}
 }
 
@@ -201,27 +204,26 @@ func createCurrentMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmb
 		return nil, err
 	}
 
-	var fields []*discordgo.MessageEmbedField
-	easternFieldText := fmt.Sprintf("Maintenance ends at %s", maint.End.In(easternLoc).Format("02 Jan 2006, 03:04PM"))
-	pacificFieldText := fmt.Sprintf("Maintenance ends at %s", maint.End.In(pacificLoc).Format("02 Jan 2006, 03:04PM"))
-	fields = append(fields, &discordgo.MessageEmbedField{
-		Name:   "Eastern",
-		Value:  easternFieldText,
-		Inline: false,
-	})
-	fields = append(fields, &discordgo.MessageEmbedField{
-		Name:   "Pacific",
-		Value:  pacificFieldText,
-		Inline: false,
-	})
+	easternFieldText := fmt.Sprintf("%s until %s", maint.Start.In(easternLoc).Format("02 Jan, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan, 3:04PM"))
+	pacificFieldText := fmt.Sprintf("%s until %s", maint.Start.In(pacificLoc).Format("02 Jan, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan. 3:04PM"))
+
+	remainingTime := maint.End.Sub(time.Now())
+	remainingHours := int(math.Floor(remainingTime.Hours()))
+	remainingMinutes := int(remainingTime.Minutes()) - remainingHours*60
+	// This formatting is ugly, not sure if inline'd \n is better, or the weird multi-line formatting.
+	descriptionText := fmt.Sprintf(`
+**All Worlds**
+[%s](%s)
+Completes in %d hours and %d minutes
+Eastern: %s
+Pacific: %s`, maint.Title, maint.URL, remainingHours, remainingMinutes, easternFieldText, pacificFieldText)
 
 	return &discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
-		Title:       "Current Maintenance",
-		Description: fmt.Sprintf("%s\nMaintenance ends in %.2f hours!", maint.Title, maint.End.Sub(time.Now()).Hours()),
+		Title:       ":tools: Maintenance",
+		Description: descriptionText,
 		Timestamp:   time.Now().Format(time.RFC3339),
-		Color:       0xffff00,
-		Fields:      fields,
+		Color:       0x34a1eb,
 	}, nil
 }
 
@@ -238,25 +240,21 @@ func createMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmbed, err
 	}
 
 	var fields []*discordgo.MessageEmbedField
-	easternFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(easternLoc).Format("02 Jan 2006, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan 2006, 3:04PM"))
-	pacificFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(pacificLoc).Format("02 Jan 2006, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan 2006, 3:04PM"))
-	fields = append(fields, &discordgo.MessageEmbedField{
-		Name:   "Eastern",
-		Value:  easternFieldText,
-		Inline: false,
-	})
-	fields = append(fields, &discordgo.MessageEmbedField{
-		Name:   "Pacific",
-		Value:  pacificFieldText,
-		Inline: false,
-	})
+	easternFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(easternLoc).Format("02 Jan, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan, 3:04PM"))
+	pacificFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(pacificLoc).Format("02 Jan, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan, 3:04PM"))
+	descriptionText := fmt.Sprintf(`
+**All Worlds**
+[%s](%s)
+Bext scheduled maintenance is:
+Eastern: %s
+Pacific: %s`, maint.Title, maint.URL, easternFieldText, pacificFieldText)
 
 	return &discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
-		Title:       "Upcoming Maintenance",
-		Description: maint.Title,
+		Title:       ":tools: Upcoming Maintenance",
+		Description: descriptionText,
 		Timestamp:   time.Now().Format(time.RFC3339),
-		Color:       0xffff00,
+		Color:       0x34a1eb,
 		Fields:      fields,
 	}, nil
 }
