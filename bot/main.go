@@ -140,42 +140,18 @@ func fashionReport(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func maintenanceCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	allMaintenance, err := getMaintenance()
+	currentMaintenance, err := getCurrentMaintenance()
 	if err != nil {
 		s.ChannelMessageSend(m.ChannelID, "Could not fetch maintenance information")
 	}
-	curTime := time.Now()
-	nextMaintenance := MaintenanceInfo{
-		Title: "ERROR",
-	}
-	currentMaintenance := MaintenanceInfo{
-		Title: "ERROR",
-	}
-	for _, maint := range allMaintenance {
-		// I think these come in chronological order, so the "last" one we
-		// encounter should be the next one.
-		if maint.Start.After(curTime) {
-			nextMaintenance = maint
-		} else if maint.Start.Before(curTime) && maint.End.After(curTime) {
-			// We're doing maintenance now...
-			currentMaintenance = maint
-		}
-	}
-	if currentMaintenance.Title != "ERROR" {
-		// We're doing maintenance now, show that shit.
-		embed, err := createCurrentMaintenanceEmbed(currentMaintenance)
+	if currentMaintenance.Game != (MaintenanceInfo{}) {
+		embed, err := createMaintenanceEmbed(currentMaintenance.Game)
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, err.Error())
 		}
 		s.ChannelMessageSendEmbed(m.ChannelID, embed)
-	} else if nextMaintenance.Title == "ERROR" {
-		s.ChannelMessageSend(m.ChannelID, "There isn't currently any scheduled maintenance! Enjoy the game!")
 	} else {
-		embed, err := createMaintenanceEmbed(nextMaintenance)
-		if err != nil {
-			s.ChannelMessageSend(m.ChannelID, err.Error())
-		}
-		s.ChannelMessageSendEmbed(m.ChannelID, embed)
+		s.ChannelMessageSend(m.ChannelID, "There is no current or upcoming maintenance! Enjoy your game!")
 	}
 }
 
@@ -215,8 +191,8 @@ func createCurrentMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmb
 **All Worlds**
 [%s](%s)
 Completes in %d hours and %d minutes
-Eastern: %s
-Pacific: %s`, maint.Title, maint.URL, remainingHours, remainingMinutes, easternFieldText, pacificFieldText)
+**Eastern**: %s
+**Pacific**: %s`, maint.Title, maint.URL, remainingHours, remainingMinutes, easternFieldText, pacificFieldText)
 
 	return &discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
@@ -245,9 +221,9 @@ func createMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmbed, err
 	descriptionText := fmt.Sprintf(`
 **All Worlds**
 [%s](%s)
-Bext scheduled maintenance is:
-Eastern: %s
-Pacific: %s`, maint.Title, maint.URL, easternFieldText, pacificFieldText)
+Next scheduled maintenance is:
+**Eastern**: %s
+**Pacific**: %s`, maint.Title, maint.URL, easternFieldText, pacificFieldText)
 
 	return &discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
