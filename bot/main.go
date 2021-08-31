@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/pelletier/go-toml"
+	toml "github.com/pelletier/go-toml"
 	"github.com/vartanbeno/go-reddit/v2/reddit"
 )
 
@@ -88,6 +88,9 @@ func main() {
 
 	// Set up reddit stuff
 	client, err = reddit.NewReadonlyClient()
+	if err != nil {
+		fatalLog(err)
+	}
 	// End reddit stuff
 
 	err = session.Open()
@@ -119,7 +122,7 @@ func fashionReport(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if previousFashionCheck.Add(60 * time.Second).Before(time.Now()) {
 		ctx := context.Background()
 		previousFashionCheck = time.Now()
-		searchOpts := *&reddit.ListPostSearchOptions{
+		searchOpts := reddit.ListPostSearchOptions{
 			Sort: "new",
 			ListPostOptions: reddit.ListPostOptions{
 				ListOptions: reddit.ListOptions{
@@ -140,11 +143,13 @@ func fashionReport(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func maintenanceCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	currentMaintenance, err := getCurrentMaintenance()
+	currentMaintenance, err := CurrentMaintenance(NorthAmerica)
 	if err != nil {
+		doLog(err.Error())
 		s.ChannelMessageSend(m.ChannelID, "Could not fetch maintenance information")
+		return
 	}
-	if currentMaintenance.Game != (MaintenanceInfo{}) {
+	if currentMaintenance.Game != (LodestoneNewsResponse{}) {
 		embed, err := createMaintenanceEmbed(currentMaintenance.Game)
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, err.Error())
@@ -156,7 +161,6 @@ func maintenanceCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func createFashionEmbed(post *reddit.Post) *discordgo.MessageEmbed {
-	// var fields []*discordgo.MessageEmbedField
 	return &discordgo.MessageEmbed{
 		Type:  discordgo.EmbedTypeImage,
 		Title: post.Title,
@@ -167,8 +171,7 @@ func createFashionEmbed(post *reddit.Post) *discordgo.MessageEmbed {
 		Color: 0x34a1eb,
 	}
 }
-
-func createCurrentMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmbed, error) {
+func createMaintenanceEmbed(maint LodestoneNewsResponse) (*discordgo.MessageEmbed, error) {
 	// Do we need to do this every time? I don't wanna be dumb when we switch
 	// from daylight saving to "standard" time
 	easternLoc, err := time.LoadLocation(timeZones["Eastern"])
@@ -180,50 +183,33 @@ func createCurrentMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmb
 		return nil, err
 	}
 
-	easternFieldText := fmt.Sprintf("%s until %s", maint.Start.In(easternLoc).Format("02 Jan, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan, 3:04PM"))
-	pacificFieldText := fmt.Sprintf("%s until %s", maint.Start.In(pacificLoc).Format("02 Jan, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan. 3:04PM"))
+	var descriptionText string
+	if maint.Start.Before(time.Now()) {
+		// Maintenance is happening now.
 
-	remainingTime := maint.End.Sub(time.Now())
-	remainingHours := int(math.Floor(remainingTime.Hours()))
-	remainingMinutes := int(remainingTime.Minutes()) - remainingHours*60
-	// This formatting is ugly, not sure if inline'd \n is better, or the weird multi-line formatting.
-	descriptionText := fmt.Sprintf(`
+		easternFieldText := fmt.Sprintf("%s until %s", maint.Start.In(easternLoc).Format("02 Jan, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan, 3:04PM"))
+		pacificFieldText := fmt.Sprintf("%s until %s", maint.Start.In(pacificLoc).Format("02 Jan, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan. 3:04PM"))
+
+		remainingTime := time.Until(maint.End)
+		remainingHours := int(math.Floor(remainingTime.Hours()))
+		remainingMinutes := int(remainingTime.Minutes()) - remainingHours*60
+		// This formatting is ugly, not sure if inline'd \n is better, or the weird multi-line formatting.
+		descriptionText = fmt.Sprintf(`
 **All Worlds**
 [%s](%s)
 Completes in %d hours and %d minutes
 **Eastern**: %s
 **Pacific**: %s`, maint.Title, maint.URL, remainingHours, remainingMinutes, easternFieldText, pacificFieldText)
-
-	return &discordgo.MessageEmbed{
-		Type:        discordgo.EmbedTypeRich,
-		Title:       ":tools: Maintenance",
-		Description: descriptionText,
-		Timestamp:   time.Now().Format(time.RFC3339),
-		Color:       0x34a1eb,
-	}, nil
-}
-
-func createMaintenanceEmbed(maint MaintenanceInfo) (*discordgo.MessageEmbed, error) {
-	// Do we need to do this every time? I don't wanna be dumb when we switch
-	// from daylight saving to "standard" time
-	easternLoc, err := time.LoadLocation(timeZones["Eastern"])
-	if err != nil {
-		return nil, err
-	}
-	pacificLoc, err := time.LoadLocation(timeZones["Pacific"])
-	if err != nil {
-		return nil, err
-	}
-
-	var fields []*discordgo.MessageEmbedField
-	easternFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(easternLoc).Format("02 Jan, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan, 3:04PM"))
-	pacificFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(pacificLoc).Format("02 Jan, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan, 3:04PM"))
-	descriptionText := fmt.Sprintf(`
+	} else {
+		easternFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(easternLoc).Format("02 Jan, 3:04PM"), maint.End.In(easternLoc).Format("02 Jan, 3:04PM"))
+		pacificFieldText := fmt.Sprintf("From %s until %s", maint.Start.In(pacificLoc).Format("02 Jan, 3:04PM"), maint.End.In(pacificLoc).Format("02 Jan, 3:04PM"))
+		descriptionText = fmt.Sprintf(`
 **All Worlds**
 [%s](%s)
 Next scheduled maintenance is:
 **Eastern**: %s
 **Pacific**: %s`, maint.Title, maint.URL, easternFieldText, pacificFieldText)
+	}
 
 	return &discordgo.MessageEmbed{
 		Type:        discordgo.EmbedTypeRich,
@@ -231,6 +217,5 @@ Next scheduled maintenance is:
 		Description: descriptionText,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Color:       0x34a1eb,
-		Fields:      fields,
 	}, nil
 }
