@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/moosetheory/lodestonenews"
 	toml "github.com/pelletier/go-toml"
 	"github.com/vartanbeno/go-reddit/v2/reddit"
 )
@@ -143,13 +144,13 @@ func fashionReport(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func maintenanceCommand(s *discordgo.Session, m *discordgo.MessageCreate) {
-	currentMaintenance, err := CurrentMaintenance(NorthAmerica)
+	currentMaintenance, err := lodestonenews.CurrentMaintenance(lodestonenews.NorthAmerica)
 	if err != nil {
 		doLog(err.Error())
 		s.ChannelMessageSend(m.ChannelID, "Could not fetch maintenance information")
 		return
 	}
-	if currentMaintenance.Game != (LodestoneNewsResponse{}) {
+	if currentMaintenance.Game != (lodestonenews.LodestoneNewsResponse{}) {
 		embed, err := createMaintenanceEmbed(currentMaintenance.Game)
 		if err != nil {
 			s.ChannelMessageSend(m.ChannelID, err.Error())
@@ -171,7 +172,8 @@ func createFashionEmbed(post *reddit.Post) *discordgo.MessageEmbed {
 		Color: 0x34a1eb,
 	}
 }
-func createMaintenanceEmbed(maint LodestoneNewsResponse) (*discordgo.MessageEmbed, error) {
+
+func createMaintenanceEmbed(maint lodestonenews.LodestoneNewsResponse) (*discordgo.MessageEmbed, error) {
 	// Do we need to do this every time? I don't wanna be dumb when we switch
 	// from daylight saving to "standard" time
 	easternLoc, err := time.LoadLocation(timeZones["Eastern"])
